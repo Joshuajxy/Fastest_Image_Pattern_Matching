@@ -178,7 +178,7 @@ struct s_BlockMax
 		if (vecBlock.size () == 0)
 			return;
 		//找出所有跟rectIgnore交集的block
-		int iSize = vecBlock.size ();
+		size_t iSize = vecBlock.size ();
 		for (int i = 0; i < iSize ; i++)
 		{
 			Rect rectIntersec = rectIgnore & vecBlock[i].rect;
@@ -192,7 +192,7 @@ struct s_BlockMax
 	}
 	void GetMaxValueLoc (double& dMax, Point& ptMaxLoc)
 	{
-		int iSize = vecBlock.size ();
+		size_t iSize = vecBlock.size ();
 		if (iSize == 0)
 		{
 			minMaxLoc (matSrc, 0, &dMax, 0, &ptMaxLoc);
@@ -218,6 +218,7 @@ class CMatchToolDlg : public CDialogEx
 // 建構
 public:
 	CMatchToolDlg(CWnd* pParent = nullptr);	// 標準建構函式
+	virtual ~CMatchToolDlg();  // 添加虚析构函数声明
 
 // 對話方塊資料
 #ifdef AFX_DESIGN_TIME
@@ -226,6 +227,10 @@ public:
 
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 支援
+
+protected:
+	HANDLE m_hPauseEvent;
+	void StopVideo();
 
 
 // 程式碼實作
@@ -236,6 +241,11 @@ protected:
 	virtual BOOL OnInitDialog();
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
+	afx_msg void OnBnClickedBtnLoadVideo();  // 添加在这里
+	afx_msg void OnBnClickedBtnPlayPause();
+	afx_msg LRESULT OnUpdateFrame(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnUpdatePlayButton(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnDestroy();
 	DECLARE_MESSAGE_MAP()
 public:
 	int m_iMaxPos;
@@ -277,6 +287,19 @@ private:
 	void LoadSrc ();
 	void LoadDst ();
 	BOOL m_bShowResult;
+
+	VideoCapture m_videoCapture;
+	Mat m_currentFrame;
+	bool m_bIsPlaying;
+	bool m_bIsVideoLoaded;
+	bool m_bIsProcessing;
+	int m_iTotalFrames;
+	int m_iCurrentFrame;
+
+	void ProcessNextFrame();
+	static UINT VideoProcessThread(LPVOID pParam);
+	CWinThread* m_pProcessThread;
+
 public:
 	afx_msg void OnLoadDst ();
 	afx_msg void OnDropFiles (HDROP hDropInfo);

@@ -1,6 +1,6 @@
 ﻿//{{NO_DEPENDENCIES}}
-// Microsoft Visual C++ generated include file.
-// Used by MatchTool.rc
+// Microsoft Visual C++ 生成的包含文件。
+// 供 MatchTool.rc 使用
 //
 #define IDD_ELCVMATCHTOOL_DIALOG        102
 #define IDD_MATCHTOOL_DIALOG            102
@@ -46,6 +46,8 @@
 #define IDC_CHECK_SIMD                  1033
 #define IDC_STATIC_NUM                  1034
 #define IDC_STATIC_NUM_SHOW             1035
+#define IDC_BTN_PLAY_PAUSE              1036
+#define IDC_BTN_LOAD_VIDEO              1037
 #define ID_32771                        32771
 #define ID_LOAD_SRC                     32772
 #define ID_32773                        32773
@@ -57,7 +59,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        134
 #define _APS_NEXT_COMMAND_VALUE         32775
-#define _APS_NEXT_CONTROL_VALUE         1036
+#define _APS_NEXT_CONTROL_VALUE         1039
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

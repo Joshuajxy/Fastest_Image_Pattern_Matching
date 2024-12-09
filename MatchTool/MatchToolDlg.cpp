@@ -100,6 +100,13 @@ CMatchToolDlg::CMatchToolDlg(CWnd* pParent /*=nullptr*/)
 	m_bShowResult = FALSE;
 	bInitial = FALSE;
 	m_bToleranceRange = FALSE;
+	m_hPauseEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	m_bIsVideoLoaded = false;
+	m_bIsPlaying = false;
+	m_bIsProcessing = false;
+	m_pProcessThread = nullptr;
+	m_iCurrentFrame = 0;
+	m_iTotalFrames = 0;
 }
 
 void CMatchToolDlg::DoDataExchange(CDataExchange* pDX)
@@ -150,6 +157,12 @@ BEGIN_MESSAGE_MAP(CMatchToolDlg, CDialogEx)
 	ON_WM_LBUTTONDOWN ()
 	ON_BN_CLICKED (IDC_BUTTON_CHANGE_TOLERANCE_MODE, &CMatchToolDlg::OnBnClickedButtonChangeToleranceMode)
 	ON_CBN_SELCHANGE (IDC_COMBO_LAN, &CMatchToolDlg::OnCbnSelchangeComboLan)
+
+	ON_BN_CLICKED(IDC_BTN_LOAD_VIDEO, &CMatchToolDlg::OnBnClickedBtnLoadVideo)
+	ON_BN_CLICKED(IDC_BTN_PLAY_PAUSE, &CMatchToolDlg::OnBnClickedBtnPlayPause)
+	ON_MESSAGE(WM_USER + 1, &CMatchToolDlg::OnUpdateFrame)
+	ON_MESSAGE(WM_USER + 2, &CMatchToolDlg::OnUpdatePlayButton)
+
 END_MESSAGE_MAP()
 
 
@@ -269,6 +282,17 @@ BOOL CMatchToolDlg::OnInitDialog()
 	ChangeLanguage (L"English");
 	//GetDlgItem (IDC_STATIC_MAX_POS)->SetFont (&font);
 
+	
+	// 初始化视频相关变量
+	m_bIsVideoLoaded = false;
+	m_bIsPlaying = false;
+	m_bIsProcessing = false;
+	m_pProcessThread = nullptr;
+
+	// 禁用播放按钮，直到加载视频
+	GetDlgItem(IDC_BTN_PLAY_PAUSE)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BTN_PLAY_PAUSE)->SetWindowText(L"Play");
+
 	return TRUE;  // 傳回 TRUE，除非您對控制項設定焦點
 }
 
@@ -307,92 +331,114 @@ void CMatchToolDlg::OnLoadSrc ()
 		LoadSrc ();
 	}
 }
-void CMatchToolDlg::RefreshSrcView ()
+void CMatchToolDlg::RefreshSrcView()
 {
-	HWND hWnd = (HWND)cvGetWindowHandle ("SrcView");
-	if (!hWnd || m_matSrc.empty ())
+	HWND hWnd = (HWND)cvGetWindowHandle("SrcView");
+	if (!hWnd || m_matSrc.empty())
 		return;
-	CWnd* pWnd = CWnd::FromHandle (hWnd);
-	CDC* dc = pWnd->GetDC ();
+
+	CWnd* pWnd = CWnd::FromHandle(hWnd);
+	CDC* dc = pWnd->GetDC();
 	CRect rect;
-	//將背景繪製上白色網格
-	CBrush brush (HS_DIAGCROSS, RGB (200, 200, 200));
-	::GetWindowRect (GetDlgItem (IDC_STATIC_SRC_VIEW)->m_hWnd, rect);
-	ScreenToClient (rect);
-	//dc->FillRect (CRect (0, 0, rect.Width (), rect.Height ()), &brush);
 
-	Mat matResize, matColorSrc;
-	Size size (int (m_dNewScale * m_matSrc.cols), int (m_dNewScale * m_matSrc.rows));
-	cvtColor (m_matSrc, matColorSrc, COLOR_GRAY2BGR);
-	resize (matColorSrc, matResize, size);
-	//縮放
-	int iPosX = m_hScrollBar.GetScrollPos ();
-	int iPosY = m_vScrollBar.GetScrollPos ();
+	// 将背景绘制上白色网格
+	CBrush brush(HS_DIAGCROSS, RGB(200, 200, 200));
+	::GetWindowRect(GetDlgItem(IDC_STATIC_SRC_VIEW)->m_hWnd, rect);
+	ScreenToClient(rect);
 
-	int iW = int (m_matSrc.cols * m_dSrcScale), iH = int (m_matSrc.rows * m_dSrcScale);
+	try {
+		Mat matResize, matColorSrc;
+		Size size(int(m_dNewScale * m_matSrc.cols), int(m_dNewScale * m_matSrc.rows));
 
-	Rect rectShow (Point (iPosX, iPosY), Size (iW, iH));
-	//縮放
-	int iSize = (int)m_vecSingleTargetData.size ();
-
-	
-
-	if (m_bShowResult)
-	{
-		for (int i = 0; i < iSize; i++)
-		{
-			Point ptLT (m_vecSingleTargetData[i].ptLT * m_dNewScale);
-			Point ptLB (m_vecSingleTargetData[i].ptLB * m_dNewScale);
-			Point ptRB (m_vecSingleTargetData[i].ptRB * m_dNewScale);
-			Point ptRT (m_vecSingleTargetData[i].ptRT * m_dNewScale);
-			Point ptC (m_vecSingleTargetData[i].ptCenter * m_dNewScale);
-			DrawDashLine (matResize, ptLT, ptLB);
-			DrawDashLine (matResize, ptLB, ptRB);
-			DrawDashLine (matResize, ptRB, ptRT);
-			DrawDashLine (matResize, ptRT, ptLT);
-
-			//左上及角落邊框
-			Point ptDis1, ptDis2;
-			if (m_matDst.cols > m_matDst.rows)
-			{
-				ptDis1 = (ptLB - ptLT) / 3;
-				ptDis2 = (ptRT - ptLT) / 3 * (m_matDst.rows / (float)m_matDst.cols);
-			}
-			else
-			{
-				ptDis1 = (ptLB - ptLT) / 3 * (m_matDst.cols / (float)m_matDst.rows);
-				ptDis2 = (ptRT - ptLT) / 3;
-			}
-			line (matResize, ptLT, ptLT + ptDis1 / 2, colorGreen, 1, CV_AA);
-			line (matResize, ptLT, ptLT + ptDis2 / 2, colorGreen, 1, CV_AA);
-			line (matResize, ptRT, ptRT + ptDis1 / 2, colorGreen, 1, CV_AA);
-			line (matResize, ptRT, ptRT - ptDis2 / 2, colorGreen, 1, CV_AA);
-			line (matResize, ptRB, ptRB - ptDis1 / 2, colorGreen, 1, CV_AA);
-			line (matResize, ptRB, ptRB - ptDis2 / 2, colorGreen, 1, CV_AA);
-			line (matResize, ptLB, ptLB - ptDis1 / 2, colorGreen, 1, CV_AA);
-			line (matResize, ptLB, ptLB + ptDis2 / 2, colorGreen, 1, CV_AA);
-			//
-
-			DrawDashLine (matResize, ptLT + ptDis1, ptLT + ptDis2);
-			DrawMarkCross (matResize, ptC.x, ptC.y, 5, colorGreen, 1);
-			string str = format ("%d", i);
-			putText (matResize, str, (ptLT + ptRT) / 2, FONT_HERSHEY_PLAIN, 1, colorGreen);
+		// 确保源图像有效
+		if (m_matSrc.data == nullptr) {
+			AfxMessageBox(_T("Invalid source image"));
+			return;
 		}
+
+		// 检查并转换颜色空间
+		if (m_matSrc.channels() == 1) {
+			cvtColor(m_matSrc, matColorSrc, COLOR_GRAY2BGR);
+		}
+		else if (m_matSrc.channels() == 3) {
+			matColorSrc = m_matSrc.clone();
+		}
+		else {
+			AfxMessageBox(_T("Unsupported number of channels"));
+			return;
+		}
+
+		// 缩放
+		resize(matColorSrc, matResize, size);
+
+		// 获取滚动条位置
+		int iPosX = m_hScrollBar.GetScrollPos();
+		int iPosY = m_vScrollBar.GetScrollPos();
+		int iW = int(m_matSrc.cols * m_dSrcScale);
+		int iH = int(m_matSrc.rows * m_dSrcScale);
+		Rect rectShow(Point(iPosX, iPosY), Size(iW, iH));
+
+		// 处理匹配结果显示
+		if (m_bShowResult)
+		{
+			for (size_t i = 0; i < m_vecSingleTargetData.size(); i++)
+			{
+				Point ptLT(m_vecSingleTargetData[i].ptLT * m_dNewScale);
+				Point ptLB(m_vecSingleTargetData[i].ptLB * m_dNewScale);
+				Point ptRB(m_vecSingleTargetData[i].ptRB * m_dNewScale);
+				Point ptRT(m_vecSingleTargetData[i].ptRT * m_dNewScale);
+				Point ptC(m_vecSingleTargetData[i].ptCenter * m_dNewScale);
+
+				DrawDashLine(matResize, ptLT, ptLB);
+				DrawDashLine(matResize, ptLB, ptRB);
+				DrawDashLine(matResize, ptRB, ptRT);
+				DrawDashLine(matResize, ptRT, ptLT);
+
+				Point ptDis1, ptDis2;
+				if (m_matDst.cols > m_matDst.rows)
+				{
+					ptDis1 = (ptLB - ptLT) / 3;
+					ptDis2 = (ptRT - ptLT) / 3 * (m_matDst.rows / (float)m_matDst.cols);
+				}
+				else
+				{
+					ptDis1 = (ptLB - ptLT) / 3 * (m_matDst.cols / (float)m_matDst.rows);
+					ptDis2 = (ptRT - ptLT) / 3;
+				}
+
+				// 绘制标记和交叉线
+				line(matResize, ptLT, ptLT + ptDis1 / 2, colorGreen, 1, CV_AA);
+				line(matResize, ptLT, ptLT + ptDis2 / 2, colorGreen, 1, CV_AA);
+				line(matResize, ptRT, ptRT + ptDis1 / 2, colorGreen, 1, CV_AA);
+				line(matResize, ptRT, ptRT - ptDis2 / 2, colorGreen, 1, CV_AA);
+				line(matResize, ptRB, ptRB - ptDis1 / 2, colorGreen, 1, CV_AA);
+				line(matResize, ptRB, ptRB - ptDis2 / 2, colorGreen, 1, CV_AA);
+				line(matResize, ptLB, ptLB - ptDis1 / 2, colorGreen, 1, CV_AA);
+				line(matResize, ptLB, ptLB + ptDis2 / 2, colorGreen, 1, CV_AA);
+
+				DrawDashLine(matResize, ptLT + ptDis1, ptLT + ptDis2);
+				DrawMarkCross(matResize, ptC.x, ptC.y, 5, colorGreen, 1);
+
+				string str = format("%d", i);
+				putText(matResize, str, (ptLT + ptRT) / 2, FONT_HERSHEY_PLAIN, 1, colorGreen);
+			}
+		}
+
+		resizeWindow("SrcView", size.width, size.height);
+		imshow("SrcView", matResize(rectShow));
+	}
+	catch (cv::Exception& e) {
+		CString strError;
+		strError.Format(_T("OpenCV Error: %hs\nAt line: %d"), e.what(), __LINE__);
+		AfxMessageBox(strError);
+	}
+	catch (...) {
+		AfxMessageBox(_T("Unknown error in RefreshSrcView"));
 	}
 
-	resizeWindow ("SrcView", size.width, size.height);
-	//if (rectShow.width + rectShow.tl ().x > m_matSrc.cols || rectShow.height + rectShow.tl ().y > m_matSrc.rows)
-		//AfxMessageBox (L"1");
-	imshow ("SrcView", matResize (rectShow));
-	//::ShowWindow ((HWND)cvGetWindowHandle ("SrcView"), SW_SHOW);
-
-
-	
-	
-	pWnd->ReleaseDC (dc);
-
-
+	pWnd->ReleaseDC(dc);
 }
+
 void CMatchToolDlg::RefreshDstView ()
 {
 	HWND hWnd = (HWND)cvGetWindowHandle ("DstView");
@@ -559,7 +605,7 @@ void CMatchToolDlg::OnDropFiles (HDROP hDropInfo)
 			{
 				m_matSrc = Read_TCHAR (cstrFile.GetBuffer ());
 				cstrFile.ReleaseBuffer ();
-				LoadSrc ();
+				LoadSrc();
 			}
 			else if (rectDst.PtInRect (pointCursor))
 			{
@@ -1680,32 +1726,58 @@ LRESULT CMatchToolDlg::OnShowMSG (WPARAM wMSGPointer, LPARAM lIsShowTime)
 	return 0;
 }
 
-void CMatchToolDlg::LoadSrc ()
+void CMatchToolDlg::LoadSrc()
 {
+	// 在函数开始添加输入验证
+	if (m_matSrc.empty()) {
+		TRACE(_T("LoadSrc: Source image is empty\n"));
+		return;
+	}
+
+	TRACE(_T("LoadSrc: Image size: %d x %d, channels: %d\n"),
+		m_matSrc.cols, m_matSrc.rows, m_matSrc.channels());
+
 	CRect rectSrc;
-	::GetWindowRect (GetDlgItem (IDC_STATIC_SRC_VIEW)->m_hWnd, rectSrc);
-	double dScaleX = rectSrc.Width () / (double)m_matSrc.cols;
-	double dScaleY = rectSrc.Height () / (double)m_matSrc.rows;
-	m_dSrcScale = min (dScaleX, dScaleY);
+	::GetWindowRect(GetDlgItem(IDC_STATIC_SRC_VIEW)->m_hWnd, rectSrc);
+
+	// 添加窗口尺寸调试信息
+	TRACE(_T("Window size: %d x %d\n"), rectSrc.Width(), rectSrc.Height());
+
+	double dScaleX = rectSrc.Width() / (double)m_matSrc.cols;
+	double dScaleY = rectSrc.Height() / (double)m_matSrc.rows;
+	m_dSrcScale = min(dScaleX, dScaleY);
 	m_dNewScale = m_dSrcScale;
+
+	// 添加缩放比例调试信息
+	TRACE(_T("Scale factors - X: %.3f, Y: %.3f, Selected: %.3f\n"),
+		dScaleX, dScaleY, m_dSrcScale);
+
 	m_bShowResult = FALSE;
 	m_iScaleTimes = 0;
-	//防止顯示不同比例圖片時DC殘留
-	CWnd* pWnd = GetDlgItem (IDC_STATIC_SRC_VIEW);
-	pWnd->GetClientRect (&rectSrc);//得到控件客户端区域坐标
-	pWnd->ClientToScreen (rectSrc);//将区域坐标由 控件客户区转成对话框区
-	this->ScreenToClient (rectSrc); //将区域坐标由 对话框区转成对话框客户区坐标
-	InvalidateRect (rectSrc);
-	//防止顯示不同比例圖片時DC殘留
 
-	//Scroll Bar
-	m_hScrollBar.SetScrollPos (0);
-	m_vScrollBar.SetScrollPos (0);
-	RefreshSrcView ();
+	CWnd* pWnd = GetDlgItem(IDC_STATIC_SRC_VIEW);
+	if (!pWnd) {
+		TRACE(_T("LoadSrc: Failed to get source view window\n"));
+		return;
+	}
+
+	pWnd->GetClientRect(&rectSrc);
+	pWnd->ClientToScreen(rectSrc);
+	this->ScreenToClient(rectSrc);
+	InvalidateRect(rectSrc);
+
+	m_hScrollBar.SetScrollPos(0);
+	m_vScrollBar.SetScrollPos(0);
+
+	RefreshSrcView();
+
 	CString strSize;
-	strSize.Format (L"%s : %d X %d", m_strLanSourceImageSize, m_matSrc.cols, m_matSrc.rows);
-	m_statusBar.SetPaneText (1, strSize);
-	
+	strSize.Format(L"%s : %d X %d", m_strLanSourceImageSize, m_matSrc.cols, m_matSrc.rows);
+	m_statusBar.SetPaneText(1, strSize);
+
+	TRACE(_T("LoadSrc completed successfully\n"));
+
+
 	//Test
 	//double d1 = clock ();
 	//Mat matResult;
@@ -2159,12 +2231,272 @@ void CMatchToolDlg::OnBnClickedButtonChangeToleranceMode ()
 }
 
 
-
-
 void CMatchToolDlg::OnCbnSelchangeComboLan ()
 {
 	int iSel = m_cbLanSelect.GetCurSel ();
 	CString strLan;
 	m_cbLanSelect.GetLBText (iSel, strLan);
 	ChangeLanguage (strLan);
+}
+
+
+// 在 MatchToolDlg.cpp 中添加新的实现
+
+void CMatchToolDlg::OnBnClickedBtnLoadVideo()
+{
+	CString szFilter = L"Video Files(*.avi;*.mp4)|*.avi;*.mp4|All Files(*.*)|*.*||";
+	CFileDialog fd(true, NULL, NULL, OFN_HIDEREADONLY, szFilter, NULL);
+
+	if (fd.DoModal() == IDOK)
+	{
+		CString szFileName = fd.GetPathName();
+
+		// 关闭之前的视频
+		if (m_videoCapture.isOpened())
+		{
+			m_bIsPlaying = false;
+			if (m_pProcessThread)
+			{
+				WaitForSingleObject(m_pProcessThread->m_hThread, INFINITE);
+				delete m_pProcessThread;
+				m_pProcessThread = nullptr;
+			}
+			m_videoCapture.release();
+		}
+
+		// 打开新视频
+		m_videoCapture.open(string(CT2CA(szFileName)));
+		if (m_videoCapture.isOpened())
+		{
+			m_bIsVideoLoaded = true;
+			m_bIsPlaying = false;
+			m_bIsProcessing = false;
+			m_iTotalFrames = (int)m_videoCapture.get(CAP_PROP_FRAME_COUNT);
+			m_iCurrentFrame = 0;
+
+			// 获取第一帧
+			m_videoCapture >> m_currentFrame;
+			if (!m_currentFrame.empty())
+			{
+				m_matSrc = m_currentFrame.clone();
+				LoadSrc();
+			}
+
+			GetDlgItem(IDC_BTN_PLAY_PAUSE)->EnableWindow(TRUE);
+		}
+		else
+		{
+			AfxMessageBox(L"Failed to open video file!");
+		}
+	}
+}
+
+
+// 处理自定义消息
+LRESULT CMatchToolDlg::OnUpdateFrame(WPARAM wParam, LPARAM lParam)
+{
+	LoadSrc(); // 更新显示
+	return 0;
+}
+
+LRESULT CMatchToolDlg::OnUpdatePlayButton(WPARAM wParam, LPARAM lParam)
+{
+	GetDlgItem(IDC_BTN_PLAY_PAUSE)->SetWindowText(L"Play");
+	return 0;
+}
+
+
+void CMatchToolDlg::OnDestroy()
+{
+	m_bIsPlaying = false;
+
+	if (m_hPauseEvent)
+	{
+		SetEvent(m_hPauseEvent);
+		CloseHandle(m_hPauseEvent);
+		m_hPauseEvent = NULL;
+	}
+
+	if (m_pProcessThread)
+	{
+		WaitForSingleObject(m_pProcessThread->m_hThread, 1000);
+		delete m_pProcessThread;
+		m_pProcessThread = nullptr;
+	}
+
+	if (m_videoCapture.isOpened())
+	{
+		m_videoCapture.release();
+	}
+
+	m_matSrc.release();
+	m_currentFrame.release();
+
+	CDialogEx::OnDestroy();
+}
+
+// 在 MatchToolDlg.cpp 中实现以下函数
+void CMatchToolDlg::StopVideo()
+{
+	m_bIsPlaying = false;
+	m_bIsProcessing = false;
+
+	if (m_hPauseEvent)
+	{
+		SetEvent(m_hPauseEvent);
+	}
+
+	if (m_videoCapture.isOpened())
+	{
+		m_videoCapture.release();
+	}
+
+	if (m_pProcessThread)
+	{
+		WaitForSingleObject(m_pProcessThread->m_hThread, 1000);
+		delete m_pProcessThread;
+		m_pProcessThread = nullptr;
+	}
+
+	// 更新UI
+	CWnd* pButton = GetDlgItem(IDC_BTN_PLAY_PAUSE);
+	if (pButton)
+	{
+		pButton->SetWindowText(L"Play");
+		pButton->EnableWindow(TRUE);
+	}
+}
+
+void CMatchToolDlg::OnBnClickedBtnPlayPause()
+{
+	if (!m_bIsVideoLoaded)
+		return;
+
+	m_bIsPlaying = !m_bIsPlaying;
+	CWnd* pButton = GetDlgItem(IDC_BTN_PLAY_PAUSE);
+
+	if (m_bIsPlaying)
+	{
+		ResetEvent(m_hPauseEvent);
+		pButton->SetWindowText(L"Pause");
+		if (!m_pProcessThread || !m_pProcessThread->m_hThread)
+		{
+			m_pProcessThread = AfxBeginThread(VideoProcessThread, this,
+				THREAD_PRIORITY_NORMAL, 0, CREATE_SUSPENDED);
+			if (m_pProcessThread)
+			{
+				m_pProcessThread->m_bAutoDelete = FALSE;
+				m_pProcessThread->ResumeThread();
+			}
+		}
+	}
+	else
+	{
+		SetEvent(m_hPauseEvent);
+		pButton->SetWindowText(L"Play");
+	}
+}
+
+UINT CMatchToolDlg::VideoProcessThread(LPVOID pParam)
+{
+	CMatchToolDlg* pDlg = (CMatchToolDlg*)pParam;
+	const int frame_delay = 33;  // ~30fps
+	DWORD last_frame_time = GetTickCount();
+
+	while (pDlg->m_bIsPlaying)
+	{
+		// 检查暂停事件
+		if (WaitForSingleObject(pDlg->m_hPauseEvent, 0) == WAIT_OBJECT_0)
+		{
+			Sleep(50);
+			continue;
+		}
+
+		if (!pDlg->m_bIsProcessing)
+		{
+			DWORD current_time = GetTickCount();
+			if (current_time - last_frame_time >= frame_delay)
+			{
+				pDlg->ProcessNextFrame();
+				last_frame_time = current_time;
+			}
+		}
+		Sleep(1);
+	}
+	return 0;
+}
+
+void CMatchToolDlg::ProcessNextFrame()
+{
+	if (m_bIsProcessing)
+		return;
+
+	try {
+		m_bIsProcessing = true;
+
+		if (!m_videoCapture.isOpened() || m_iCurrentFrame >= m_iTotalFrames)
+		{
+			StopVideo();
+			return;
+		}
+
+		Mat frame;
+		if (!m_videoCapture.read(frame))
+		{
+			TRACE(_T("Failed to read frame %d\n"), m_iCurrentFrame);
+			StopVideo();
+			return;
+		}
+
+		if (frame.empty())
+		{
+			TRACE(_T("Empty frame %d\n"), m_iCurrentFrame);
+			StopVideo();
+			return;
+		}
+
+		m_currentFrame = frame.clone();
+		if (frame.channels() == 3)
+		{
+			cvtColor(frame, m_matSrc, COLOR_BGR2GRAY);
+		}
+		else
+		{
+			m_matSrc = frame.clone();
+		}
+
+		// 更新UI显示
+		PostMessage(WM_USER + 1);
+
+		m_iCurrentFrame++;
+		TRACE(_T("Frame %d processed successfully\n"), m_iCurrentFrame - 1);
+	}
+	catch (cv::Exception& e)
+	{
+		TRACE(_T("OpenCV error at frame %d: %hs\n"), m_iCurrentFrame, e.what());
+		StopVideo();
+	}
+	catch (...)
+	{
+		TRACE(_T("Unknown error at frame %d\n"), m_iCurrentFrame);
+		StopVideo();
+	}
+
+	m_bIsProcessing = false;
+}
+
+CMatchToolDlg::~CMatchToolDlg()
+{
+	if (m_hPauseEvent)
+	{
+		CloseHandle(m_hPauseEvent);
+		m_hPauseEvent = NULL;
+	}
+
+	if (m_pProcessThread)
+	{
+		WaitForSingleObject(m_pProcessThread->m_hThread, 1000);
+		delete m_pProcessThread;
+		m_pProcessThread = nullptr;
+	}
 }
