@@ -1,0 +1,15 @@
+# ninja log v5
+1	13	0	clean	9992afb1f91dc381
+7	5737	7553669759630872	CMakeFiles/cvmatcher.dir/src/python/matcher_wrapper.cpp.obj	4c0ecb225d939f1d
+3	3508	7553590795729222	CMakeFiles/matcher_core.dir/src/core/template_matcher.cpp.obj	2716d3b4c0bb9923
+3509	3593	7553590796819558	matcher_core.lib	6f2152edb1726973
+3594	4021	7553590800411656	lib/cvmatcher.cp311-win_amd64.pyd	692af8de440276e3
+2	4813	7554061593761722	CMakeFiles/matcher_core.dir/src/core/template_matcher.cpp.obj	dfc4767fe243a902
+4814	4952	7554061595166493	matcher_core.lib	6f2152edb1726973
+6	7043	7554061615985678	CMakeFiles/cvmatcher.dir/src/python/matcher_wrapper.cpp.obj	a35d35cffa390e8f
+7044	7620	7554061621138575	lib/cvmatcher.cp311-win_amd64.pyd	692af8de440276e3
+0	18	0	clean	9992afb1f91dc381
+9	4234	7554061857212433	CMakeFiles/matcher_core.dir/src/core/template_matcher.cpp.obj	dfc4767fe243a902
+4235	4399	7554061858931315	matcher_core.lib	6f2152edb1726973
+6	8399	7554061899402173	CMakeFiles/cvmatcher.dir/src/python/matcher_wrapper.cpp.obj	a35d35cffa390e8f
+8400	8794	7554061902839615	lib/cvmatcher.cp311-win_amd64.pyd	692af8de440276e3

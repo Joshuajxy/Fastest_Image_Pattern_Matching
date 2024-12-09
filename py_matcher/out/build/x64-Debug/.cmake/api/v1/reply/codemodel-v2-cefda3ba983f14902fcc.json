@@ -1,0 +1,69 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.12"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "template_matcher",
+					"targetIndexes" : 
+					[
+						0,
+						1
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "cvmatcher::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-cvmatcher-Debug-21ebf706f3643ba9ce41.json",
+					"name" : "cvmatcher",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "matcher_core::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-matcher_core-Debug-cd3589de1d68b857c5ba.json",
+					"name" : "matcher_core",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "C:/Users/joshua.yang/code/tmp/Fastest_Image_Pattern_Matching/py_matcher/out/build/x64-Debug",
+		"source" : "C:/Users/joshua.yang/code/tmp/Fastest_Image_Pattern_Matching/py_matcher"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 2
+	}
+}
